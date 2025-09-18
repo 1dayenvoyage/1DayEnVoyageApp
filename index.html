@@ -1,1 +1,2323 @@
-input={"old_str": "        // Initialize app\n        document.addEventListener('DOMContentLoaded', function() {\n            // Check if user is logged in\n            if (!currentUser) {\n                showLoginScreen();\n            } else {\n                renderTripSelector();\n                renderBookings();\n                renderItinerary();\n                renderContacts();\n                renderRecommendations();\n                updateNotificationBadge();\n                updateOverviewSection();\n            }\n        });", "new_str": "        // Admin Functions\n        function showAdminModal(title, content) {\n            document.getElementById('admin-modal-title').textContent = title;\n            document.getElementById('admin-modal-content').innerHTML = content;\n            document.getElementById('admin-modal').classList.remove('hidden');\n        }\n\n        function closeAdminModal() {\n            document.getElementById('admin-modal').classList.add('hidden');\n        }\n\n        function createNewTrip() {\n            const clientOptions = Object.values(users)\n                .filter(u => u.role === 'client')\n                .map(u => `<option value=\"${u.username}\">${u.displayName}</option>`)\n                .join('');\n\n            showAdminModal('Créer un Nouveau Voyage', `\n                <form onsubmit=\"saveNewTrip(event)\" class=\"space-y-6\">\n                    <div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Nom du voyage</label>\n                            <input type=\"text\" name=\"name\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                        </div>\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Client</label>\n                            <select name=\"clientUsername\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                                <option value=\"\">Sélectionner un client</option>\n                                ${clientOptions}\n                            </select>\n                        </div>\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Destination</label>\n                        <input type=\"text\" name=\"destination\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Date de début</label>\n                            <input type=\"text\" name=\"startDate\" required placeholder=\"ex: 15 Juin 2024\" class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                        </div>\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Date de fin</label>\n                            <input type=\"text\" name=\"endDate\" required placeholder=\"ex: 22 Juin 2024\" class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                        </div>\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Description</label>\n                        <textarea name=\"description\" rows=\"3\" class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\"></textarea>\n                    </div>\n                    <div class=\"flex space-x-3\">\n                        <button type=\"button\" onclick=\"closeAdminModal()\" class=\"flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700\">Annuler</button>\n                        <button type=\"submit\" class=\"flex-1 px-4 py-2 bg-eco-green-500 hover:bg-eco-green-600 text-white rounded-lg\">Créer le Voyage</button>\n                    </div>\n                </form>\n            `);\n        }\n\n        function saveNewTrip(event) {\n            event.preventDefault();\n            const formData = new FormData(event.target);\n            const clientUsername = formData.get('clientUsername');\n            const client = users[clientUsername];\n            \n            const tripId = 'trip-' + Date.now();\n            const newTrip = {\n                id: tripId,\n                name: formData.get('name'),\n                destination: formData.get('destination'),\n                startDate: formData.get('startDate'),\n                endDate: formData.get('endDate'),\n                clientName: client.displayName,\n                description: formData.get('description') || 'Voyage personnalisé',\n                userId: clientUsername,\n                bookings: [],\n                itinerary: [],\n                contacts: [\n                    {\n                        id: 1,\n                        name: 'Travel Planner - Support',\n                        phone: '+33 1 42 56 78 90',\n                        email: 'support@travelplanner.fr',\n                        type: 'support',\n                        available: '24h/24'\n                    }\n                ],\n                recommendations: [],\n                notifications: []\n            };\n            \n            trips[tripId] = newTrip;\n            \n            // Add trip to user's trip list\n            if (!userTrips[clientUsername]) {\n                userTrips[clientUsername] = [];\n            }\n            userTrips[clientUsername].push(tripId);\n            \n            renderAdminTrips();\n            closeAdminModal();\n            showCustomAlert('Voyage créé avec succès !');\n        }\n\n        function createNewClient() {\n            showAdminModal('Ajouter un Nouveau Client', `\n                <form onsubmit=\"saveNewClient(event)\" class=\"space-y-6\">\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Nom d'affichage</label>\n                        <input type=\"text\" name=\"displayName\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Nom d'utilisateur</label>\n                        <input type=\"text\" name=\"username\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Email</label>\n                        <input type=\"email\" name=\"email\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Mot de passe</label>\n                        <input type=\"text\" name=\"password\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div class=\"flex space-x-3\">\n                        <button type=\"button\" onclick=\"closeAdminModal()\" class=\"flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700\">Annuler</button>\n                        <button type=\"submit\" class=\"flex-1 px-4 py-2 bg-warm-yellow-500 hover:bg-warm-yellow-600 text-white rounded-lg\">Créer le Client</button>\n                    </div>\n                </form>\n            `);\n        }\n\n        function saveNewClient(event) {\n            event.preventDefault();\n            const formData = new FormData(event.target);\n            const username = formData.get('username');\n            \n            if (users[username]) {\n                showCustomAlert('Ce nom d\\'utilisateur existe déjà !');\n                return;\n            }\n            \n            users[username] = {\n                username: username,\n                password: formData.get('password'),\n                displayName: formData.get('displayName'),\n                email: formData.get('email'),\n                role: 'client'\n            };\n            \n            userTrips[username] = [];\n            \n            renderAdminClients();\n            closeAdminModal();\n            showCustomAlert('Client créé avec succès !');\n        }\n\n        function exportAllData() {\n            const data = {\n                users: users,\n                trips: trips,\n                userTrips: userTrips,\n                exportDate: new Date().toISOString()\n            };\n            \n            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });\n            const url = URL.createObjectURL(blob);\n            const a = document.createElement('a');\n            a.href = url;\n            a.download = 'travel-planner-data-' + new Date().toISOString().split('T')[0] + '.json';\n            document.body.appendChild(a);\n            a.click();\n            document.body.removeChild(a);\n            URL.revokeObjectURL(url);\n            \n            showCustomAlert('Données exportées avec succès !');\n        }\n\n        function exportTripsCSV() {\n            const headers = ['ID', 'Nom', 'Client', 'Destination', 'Date Début', 'Date Fin', 'Réservations', 'Activités'];\n            const rows = Object.values(trips).map(trip => [\n                trip.id,\n                trip.name,\n                trip.clientName,\n                trip.destination,\n                trip.startDate,\n                trip.endDate,\n                trip.bookings.length,\n                trip.itinerary.length\n            ]);\n            \n            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\\\\n');\n            const blob = new Blob([csvContent], { type: 'text/csv' });\n            const url = URL.createObjectURL(blob);\n            const a = document.createElement('a');\n            a.href = url;\n            a.download = 'voyages-' + new Date().toISOString().split('T')[0] + '.csv';\n            document.body.appendChild(a);\n            a.click();\n            document.body.removeChild(a);\n            URL.revokeObjectURL(url);\n        }\n\n        function exportClientsCSV() {\n            const clients = Object.values(users).filter(u => u.role === 'client');\n            const headers = ['Username', 'Nom', 'Email', 'Nombre de Voyages'];\n            const rows = clients.map(client => [\n                client.username,\n                client.displayName,\n                client.email,\n                (userTrips[client.username] || []).length\n            ]);\n            \n            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\\\\n');\n            const blob = new Blob([csvContent], { type: 'text/csv' });\n            const url = URL.createObjectURL(blob);\n            const a = document.createElement('a');\n            a.href = url;\n            a.download = 'clients-' + new Date().toISOString().split('T')[0] + '.csv';\n            document.body.appendChild(a);\n            a.click();\n            document.body.removeChild(a);\n            URL.revokeObjectURL(url);\n        }\n\n        function importData() {\n            const fileInput = document.getElementById('import-file');\n            const file = fileInput.files[0];\n            \n            if (!file) {\n                showCustomAlert('Veuillez sélectionner un fichier JSON.');\n                return;\n            }\n            \n            const reader = new FileReader();\n            reader.onload = function(e) {\n                try {\n                    const data = JSON.parse(e.target.result);\n                    \n                    if (data.users) users = data.users;\n                    if (data.trips) trips = data.trips;\n                    if (data.userTrips) userTrips = data.userTrips;\n                    \n                    renderAdminTrips();\n                    renderAdminClients();\n                    showCustomAlert('Données importées avec succès !');\n                } catch (error) {\n                    showCustomAlert('Erreur lors de l\\'import: fichier JSON invalide.');\n                }\n            };\n            reader.readAsText(file);\n        }\n\n        function editTrip(tripId) {\n            const trip = trips[tripId];\n            showAdminModal('Modifier le Voyage', `\n                <form onsubmit=\"updateTrip(event, '${tripId}')\" class=\"space-y-6\">\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Nom du voyage</label>\n                        <input type=\"text\" name=\"name\" value=\"${trip.name}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Destination</label>\n                        <input type=\"text\" name=\"destination\" value=\"${trip.destination}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\">\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Date de début</label>\n                            <input type=\"text\" name=\"startDate\" value=\"${trip.startDate}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                        </div>\n                        <div>\n                            <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Date de fin</label>\n                            <input type=\"text\" name=\"endDate\" value=\"${trip.endDate}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                        </div>\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Description</label>\n                        <textarea name=\"description\" rows=\"3\" class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">${trip.description}</textarea>\n                    </div>\n                    <div class=\"flex space-x-3\">\n                        <button type=\"button\" onclick=\"closeAdminModal()\" class=\"flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700\">Annuler</button>\n                        <button type=\"submit\" class=\"flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg\">Mettre à jour</button>\n                    </div>\n                </form>\n            `);\n        }\n\n        function updateTrip(event, tripId) {\n            event.preventDefault();\n            const formData = new FormData(event.target);\n            \n            trips[tripId].name = formData.get('name');\n            trips[tripId].destination = formData.get('destination');\n            trips[tripId].startDate = formData.get('startDate');\n            trips[tripId].endDate = formData.get('endDate');\n            trips[tripId].description = formData.get('description');\n            \n            renderAdminTrips();\n            closeAdminModal();\n            showCustomAlert('Voyage mis à jour avec succès !');\n        }\n\n        function deleteTrip(tripId) {\n            showConfirmModal('Supprimer le voyage', 'Êtes-vous sûr de vouloir supprimer ce voyage ? Cette action est irréversible.', () => {\n                // Remove from trips\n                delete trips[tripId];\n                \n                // Remove from userTrips\n                Object.keys(userTrips).forEach(username => {\n                    userTrips[username] = userTrips[username].filter(id => id !== tripId);\n                });\n                \n                renderAdminTrips();\n                showCustomAlert('Voyage supprimé avec succès !');\n            });\n        }\n\n        function editClient(username) {\n            const client = users[username];\n            showAdminModal('Modifier le Client', `\n                <form onsubmit=\"updateClient(event, '${username}')\" class=\"space-y-6\">\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Nom d'affichage</label>\n                        <input type=\"text\" name=\"displayName\" value=\"${client.displayName}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Email</label>\n                        <input type=\"email\" name=\"email\" value=\"${client.email}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div>\n                        <label class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Mot de passe</label>\n                        <input type=\"text\" name=\"password\" value=\"${client.password}\" required class=\"w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base\">\n                    </div>\n                    <div class=\"flex space-x-3\">\n                        <button type=\"button\" onclick=\"closeAdminModal()\" class=\"flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700\">Annuler</button>\n                        <button type=\"submit\" class=\"flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg\">Mettre à jour</button>\n                    </div>\n                </form>\n            `);\n        }\n\n        function updateClient(event, username) {\n            event.preventDefault();\n            const formData = new FormData(event.target);\n            \n            users[username].displayName = formData.get('displayName');\n            users[username].email = formData.get('email');\n            users[username].password = formData.get('password');\n            \n            renderAdminClients();\n            closeAdminModal();\n            showCustomAlert('Client mis à jour avec succès !');\n        }\n\n        function deleteClient(username) {\n            showConfirmModal('Supprimer le client', 'Êtes-vous sûr de vouloir supprimer ce client ? Tous ses voyages seront également supprimés.', () => {\n                // Remove client's trips\n                const clientTrips = userTrips[username] || [];\n                clientTrips.forEach(tripId => {\n                    delete trips[tripId];\n                });\n                \n                // Remove client\n                delete users[username];\n                delete userTrips[username];\n                \n                renderAdminClients();\n                renderAdminTrips();\n                showCustomAlert('Client supprimé avec succès !');\n            });\n        }\n\n        function showConfirmModal(title, message, onConfirm) {\n            const modal = document.createElement('div');\n            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';\n            modal.innerHTML = `\n                <div class=\"bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4\">\n                    <h3 class=\"text-lg font-semibold text-gray-900 dark:text-white mb-2\">${title}</h3>\n                    <p class=\"text-gray-700 dark:text-gray-300 mb-4\">${message}</p>\n                    <div class=\"flex justify-end space-x-3\">\n                        <button onclick=\"this.closest('.fixed').remove()\" class=\"px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded\">Annuler</button>\n                        <button onclick=\"this.closest('.fixed').remove(); (${onConfirm})()\" class=\"px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded\">Confirmer</button>\n                    </div>\n                </div>\n            `;\n            document.body.appendChild(modal);\n        }\n\n        // Initialize app\n        document.addEventListener('DOMContentLoaded', function() {\n            // Check if user is logged in\n            if (!currentUser) {\n                showLoginScreen();\n            } else {\n                renderTripSelector();\n                renderBookings();\n                renderItinerary();\n                renderContacts();\n                renderRecommendations();\n                updateNotificationBadge();\n                updateOverviewSection();\n            }\n        });"}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Planner - Mon Voyage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'eco-green': {
+                            50: '#f0f9f4',
+                            100: '#dcf2e3',
+                            200: '#bce4cb',
+                            300: '#8dd1a8',
+                            400: '#5bb67d',
+                            500: '#359b5e',
+                            600: '#267d48',
+                            700: '#20643c',
+                            800: '#1d5032',
+                            900: '#18422a'
+                        },
+                        'warm-yellow': {
+                            50: '#fefdf3',
+                            100: '#fef9e3',
+                            200: '#fef2c7',
+                            300: '#fde68a',
+                            400: '#fcd34d',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full bg-gradient-to-br from-eco-green-50 to-warm-yellow-50 dark:from-eco-green-900 dark:to-warm-yellow-900">
+    <div id="app" class="min-h-full">
+        <!-- Header -->
+        <header class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-eco-green-200 dark:border-eco-green-700 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-br from-eco-green-500 to-warm-yellow-500 rounded-lg flex items-center justify-center">
+                            <span class="text-white font-bold text-sm">TP</span>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-gray-900 dark:text-white">Travel Planner</h1>
+                            <div class="flex items-center space-x-2 text-sm">
+                                <select id="trip-selector" onchange="switchTrip()" class="bg-transparent border border-eco-green-300 dark:border-eco-green-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300 text-sm">
+                                    <!-- Options will be populated here -->
+                                </select>
+                                <button onclick="addTrip()" class="text-eco-green-600 dark:text-eco-green-400 hover:text-eco-green-700 dark:hover:text-eco-green-300" title="Ajouter un voyage">➕</button>
+                            </div>
+                        </div>
+                    </div>
+                    <nav class="hidden md:flex space-x-6">
+                        <button onclick="showSection('overview')" class="nav-btn text-eco-green-600 dark:text-eco-green-400 border-b-2 border-eco-green-500">Aperçu</button>
+                        <button onclick="showSection('bookings')" class="nav-btn text-gray-600 dark:text-gray-300">Réservations</button>
+                        <button onclick="showSection('itinerary')" class="nav-btn text-gray-600 dark:text-gray-300">Itinéraire</button>
+                        <button onclick="showSection('map')" class="nav-btn text-gray-600 dark:text-gray-300">Carte</button>
+                        <button onclick="showSection('contacts')" class="nav-btn text-gray-600 dark:text-gray-300">Contacts</button>
+                    </nav>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="toggleNotifications()" class="relative p-2 text-gray-600 dark:text-gray-300 hover:text-eco-green-600 dark:hover:text-eco-green-400">
+                            <span id="notification-badge" class="absolute -top-1 -right-1 w-3 h-3 bg-warm-yellow-500 rounded-full hidden"></span>
+                            🔔
+                        </button>
+                        <div class="flex items-center space-x-2 text-sm">
+                            <span id="user-name" class="text-gray-700 dark:text-gray-300"></span>
+                            <button onclick="logout()" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">Déconnexion</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Mobile Navigation -->
+        <nav class="md:hidden bg-white dark:bg-gray-800 border-b border-eco-green-200 dark:border-eco-green-700">
+            <div class="flex justify-around py-2">
+                <button onclick="showSection('overview')" class="mobile-nav-btn text-eco-green-600 dark:text-eco-green-400">
+                    <div class="text-xs">📊</div>
+                    <div class="text-xs mt-1">Aperçu</div>
+                </button>
+                <button onclick="showSection('bookings')" class="mobile-nav-btn text-gray-600 dark:text-gray-300">
+                    <div class="text-xs">📋</div>
+                    <div class="text-xs mt-1">Réservations</div>
+                </button>
+                <button onclick="showSection('itinerary')" class="mobile-nav-btn text-gray-600 dark:text-gray-300">
+                    <div class="text-xs">🗓️</div>
+                    <div class="text-xs mt-1">Planning</div>
+                </button>
+                <button onclick="showSection('map')" class="mobile-nav-btn text-gray-600 dark:text-gray-300">
+                    <div class="text-xs">🗺️</div>
+                    <div class="text-xs mt-1">Carte</div>
+                </button>
+                <button onclick="showSection('contacts')" class="mobile-nav-btn text-gray-600 dark:text-gray-300">
+                    <div class="text-xs">📞</div>
+                    <div class="text-xs mt-1">Contacts</div>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <!-- Overview Section -->
+            <section id="overview-section" class="space-y-6">
+                <div class="bg-gradient-to-r from-eco-green-500 to-warm-yellow-500 rounded-2xl p-6 text-white">
+                    <h2 class="text-2xl font-bold mb-2">Bienvenue dans votre voyage !</h2>
+                    <p class="text-eco-green-50 mb-4">Découverte écoresponsable de la Provence</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="bg-white/20 rounded-lg p-3">
+                            <div class="font-semibold">Départ</div>
+                            <div>15 Juin 2024</div>
+                        </div>
+                        <div class="bg-white/20 rounded-lg p-3">
+                            <div class="font-semibold">Retour</div>
+                            <div>22 Juin 2024</div>
+                        </div>
+                        <div class="bg-white/20 rounded-lg p-3">
+                            <div class="font-semibold">Durée</div>
+                            <div>7 jours</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                        <div class="text-2xl font-bold text-eco-green-600 dark:text-eco-green-400">5</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">Réservations</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                        <div class="text-2xl font-bold text-warm-yellow-600 dark:text-warm-yellow-400">12</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">Activités</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                        <div class="text-2xl font-bold text-eco-green-600 dark:text-eco-green-400">3</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">Villes</div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                        <div class="text-2xl font-bold text-warm-yellow-600 dark:text-warm-yellow-400">8</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300">Contacts</div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Events -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Prochaines activités</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-4 p-3 bg-eco-green-50 dark:bg-eco-green-900/20 rounded-lg">
+                            <div class="w-2 h-2 bg-eco-green-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-900 dark:text-white">Visite des Lavandes</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-300">Demain 9h00 - Plateau de Valensole</div>
+                            </div>
+                            <span class="text-xs bg-warm-yellow-100 dark:bg-warm-yellow-900/20 text-warm-yellow-700 dark:text-warm-yellow-300 px-2 py-1 rounded">Éco-activité</span>
+                        </div>
+                        <div class="flex items-center space-x-4 p-3 bg-warm-yellow-50 dark:bg-warm-yellow-900/20 rounded-lg">
+                            <div class="w-2 h-2 bg-warm-yellow-500 rounded-full"></div>
+                            <div class="flex-1">
+                                <div class="font-medium text-gray-900 dark:text-white">Dégustation d'huile d'olive</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-300">18 Juin 14h30 - Moulin traditionnel</div>
+                            </div>
+                            <span class="text-xs bg-eco-green-100 dark:bg-eco-green-900/20 text-eco-green-700 dark:text-eco-green-300 px-2 py-1 rounded">Gastronomie</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recommandations écoresponsables</h3>
+                        <button onclick="addRecommendation()" class="bg-eco-green-500 hover:bg-eco-green-600 text-white px-3 py-1 rounded-lg text-sm">+ Ajouter</button>
+                    </div>
+                    <div id="recommendations-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Recommendations will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bookings Section -->
+            <section id="bookings-section" class="hidden space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Mes Réservations</h2>
+                        <button onclick="addBooking()" class="bg-eco-green-500 hover:bg-eco-green-600 text-white px-4 py-2 rounded-lg text-sm">+ Ajouter</button>
+                    </div>
+                    <div id="bookings-list" class="space-y-4">
+                        <!-- Bookings will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Itinerary Section -->
+            <section id="itinerary-section" class="hidden space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Planning du Voyage</h2>
+                        <button onclick="addItineraryItem()" class="bg-warm-yellow-500 hover:bg-warm-yellow-600 text-white px-4 py-2 rounded-lg text-sm">+ Ajouter</button>
+                    </div>
+                    <div id="itinerary-timeline" class="space-y-6">
+                        <!-- Timeline will be populated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Map Section -->
+            <section id="map-section" class="hidden space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Carte du voyage</h2>
+                    <div class="w-full h-96 rounded-lg bg-gradient-to-br from-eco-green-100 to-warm-yellow-100 dark:from-eco-green-900/20 dark:to-warm-yellow-900/20 flex items-center justify-center border-2 border-dashed border-eco-green-300 dark:border-eco-green-600">
+                        <div class="text-center p-8">
+                            <div class="text-4xl mb-4">🗺️</div>
+                            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Carte interactive à venir</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Une clé API Google Maps sera nécessaire pour afficher la carte interactive</p>
+                            <div class="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                                <div class="flex items-center justify-center space-x-2">
+                                    <span>🏨</span>
+                                    <span>Hôtel Les Jardins de Provence - Avignon</span>
+                                </div>
+                                <div class="flex items-center justify-center space-x-2">
+                                    <span>🎯</span>
+                                    <span>Plateau de Valensole - Champs de lavande</span>
+                                </div>
+                                <div class="flex items-center justify-center space-x-2">
+                                    <span>🏛️</span>
+                                    <span>Palais des Papes - Centre historique</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="px-3 py-2 bg-eco-green-100 dark:bg-eco-green-900/20 text-eco-green-700 dark:text-eco-green-300 rounded-lg text-sm">🏨 Hébergements</span>
+                        <span class="px-3 py-2 bg-warm-yellow-100 dark:bg-warm-yellow-900/20 text-warm-yellow-700 dark:text-warm-yellow-300 rounded-lg text-sm">🎯 Activités</span>
+                        <span class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm">🍽️ Restaurants</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contacts Section -->
+            <section id="contacts-section" class="hidden space-y-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Contacts Utiles</h2>
+                        <button onclick="addContact()" class="bg-eco-green-500 hover:bg-eco-green-600 text-white px-4 py-2 rounded-lg text-sm">+ Ajouter</button>
+                    </div>
+                    <div id="contacts-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Contacts will be populated here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Notifications Panel -->
+        <div id="notifications-panel" class="hidden fixed top-16 right-4 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="font-semibold text-gray-900 dark:text-white">Notifications</h3>
+            </div>
+            <div id="notifications-list" class="p-4 space-y-3 max-h-80 overflow-y-auto">
+                <!-- Notifications will be populated here -->
+            </div>
+        </div>
+
+        <!-- Modal for adding items -->
+        <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">Ajouter un élément</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+                </div>
+                <div id="modal-content">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // User authentication and data structure
+        let users = {
+            'admin': {
+                username: 'admin',
+                password: 'travelplanner2024',
+                displayName: 'Travel Planner Admin',
+                email: 'admin@travelplanner.fr',
+                role: 'admin'
+            },
+            'martin': {
+                username: 'martin',
+                password: 'provence2024',
+                displayName: 'Famille Martin',
+                email: 'martin@email.com',
+                role: 'client'
+            },
+            'dupont': {
+                username: 'dupont',
+                password: 'japon2024',
+                displayName: 'M. Dupont',
+                email: 'dupont@email.com',
+                role: 'client'
+            }
+        };
+
+        let currentUser = null;
+        let userTrips = {
+            'martin': ['provence-2024'],
+            'dupont': ['japan-2024']
+        };
+
+        // Multi-trip data structure
+        let trips = {
+            'provence-2024': {
+                id: 'provence-2024',
+                name: 'Provence Écoresponsable',
+                destination: 'Provence, France',
+                startDate: '15 Juin 2024',
+                endDate: '22 Juin 2024',
+                clientName: 'Famille Martin',
+                description: 'Découverte écoresponsable de la Provence',
+                userId: 'martin',
+                bookings: [
+                    {
+                        id: 1,
+                        type: 'hotel',
+                        title: 'Hôtel Les Jardins de Provence',
+                        date: '15-17 Juin 2024',
+                        status: 'confirmed',
+                        details: 'Chambre double, petit-déjeuner inclus',
+                        confirmation: 'HTL-45789'
+                    },
+                    {
+                        id: 2,
+                        type: 'transport',
+                        title: 'TGV Paris - Avignon',
+                        date: '15 Juin 2024, 07:20',
+                        status: 'confirmed',
+                        details: '2ème classe, places 61-62 voiture 12',
+                        confirmation: 'SNCF-789123'
+                    }
+                ],
+                itinerary: [
+                    {
+                        id: 1,
+                        date: '15 Juin 2024',
+                        time: '07:20',
+                        title: 'Départ TGV Paris-Avignon',
+                        description: 'Arrivée prévue 10:40',
+                        type: 'transport',
+                        location: 'Gare de Lyon, Paris'
+                    },
+                    {
+                        id: 2,
+                        date: '15 Juin 2024',
+                        time: '12:00',
+                        title: 'Déjeuner au Marché des Halles',
+                        description: 'Découverte des produits locaux',
+                        type: 'meal',
+                        location: 'Avignon Centre'
+                    }
+                ],
+                contacts: [
+                    {
+                        id: 1,
+                        name: 'Travel Planner - Support',
+                        phone: '+33 1 42 56 78 90',
+                        email: 'support@travelplanner.fr',
+                        type: 'support',
+                        available: '24h/24'
+                    },
+                    {
+                        id: 2,
+                        name: 'Hôtel Les Jardins de Provence',
+                        phone: '+33 4 90 25 67 89',
+                        email: 'contact@jardinsprovence.fr',
+                        type: 'accommodation',
+                        available: '8h-22h'
+                    }
+                ],
+                recommendations: [
+                    {
+                        id: 1,
+                        title: 'Restaurant Le Jardin Bio',
+                        description: 'Cuisine locale 100% bio, produits de saison',
+                        category: 'restaurant',
+                        rating: '4.8/5',
+                        info: 'Ouvert jusqu\'à 22h',
+                        icon: '🌱',
+                        image: null,
+                        isDefault: true
+                    },
+                    {
+                        id: 2,
+                        title: 'Location vélos électriques',
+                        description: 'Découvrez les environs en transport doux',
+                        category: 'transport',
+                        rating: '4.9/5',
+                        info: 'Livraison gratuite',
+                        icon: '🚲',
+                        image: null,
+                        isDefault: true
+                    }
+                ],
+                notifications: [
+                    {
+                        id: 1,
+                        title: 'Rappel de réservation',
+                        message: 'Votre visite des lavandes commence demain à 9h00',
+                        time: 'Il y a 2h',
+                        type: 'reminder',
+                        urgent: false
+                    }
+                ]
+            },
+            'japan-2024': {
+                id: 'japan-2024',
+                name: 'Découverte du Japon - M. Dupont',
+                destination: 'Tokyo & Kyoto, Japon',
+                startDate: '10 Septembre 2024',
+                endDate: '25 Septembre 2024',
+                clientName: 'M. Dupont',
+                description: 'Voyage culturel au Japon',
+                bookings: [
+                    {
+                        id: 1,
+                        type: 'transport',
+                        title: 'Vol Air France Paris-Tokyo',
+                        date: '10 Septembre 2024, 11:30',
+                        status: 'confirmed',
+                        details: 'Classe économique, siège 23A',
+                        confirmation: 'AF-298457'
+                    },
+                    {
+                        id: 2,
+                        type: 'hotel',
+                        title: 'Hôtel Traditional Ryokan',
+                        date: '11-15 Septembre 2024',
+                        status: 'confirmed',
+                        details: 'Chambre traditionnelle avec tatami',
+                        confirmation: 'RYO-78965'
+                    }
+                ],
+                itinerary: [
+                    {
+                        id: 1,
+                        date: '11 Septembre 2024',
+                        time: '09:00',
+                        title: 'Visite du Temple Senso-ji',
+                        description: 'Découverte du plus ancien temple de Tokyo',
+                        type: 'sightseeing',
+                        location: 'Asakusa, Tokyo'
+                    },
+                    {
+                        id: 2,
+                        date: '12 Septembre 2024',
+                        time: '14:00',
+                        title: 'Cérémonie du thé',
+                        description: 'Initiation à la cérémonie traditionnelle',
+                        type: 'activity',
+                        location: 'Ueno, Tokyo'
+                    }
+                ],
+                contacts: [
+                    {
+                        id: 1,
+                        name: 'Guide local - Hiroshi Tanaka',
+                        phone: '+81 3 1234 5678',
+                        email: 'tanaka@tokyoguide.jp',
+                        type: 'guide',
+                        available: '9h-17h'
+                    },
+                    {
+                        id: 2,
+                        name: 'Ambassade de France au Japon',
+                        phone: '+81 3 5798 6000',
+                        email: 'info@ambafrance-jp.org',
+                        type: 'emergency',
+                        available: '24h/24'
+                    }
+                ],
+                recommendations: [
+                    {
+                        id: 1,
+                        title: 'Restaurant Sushi Yoshitake',
+                        description: 'Sushi traditionnel, 3 étoiles Michelin',
+                        category: 'restaurant',
+                        rating: '5.0/5',
+                        info: 'Réservation obligatoire',
+                        icon: '🍣',
+                        image: null,
+                        isDefault: true
+                    },
+                    {
+                        id: 2,
+                        title: 'Marché aux poissons de Tsukiji',
+                        description: 'Visite matinale du célèbre marché',
+                        category: 'activity',
+                        rating: '4.7/5',
+                        info: 'Ouvert dès 5h du matin',
+                        icon: '🐟',
+                        image: null,
+                        isDefault: true
+                    }
+                ],
+                notifications: [
+                    {
+                        id: 1,
+                        title: 'Météo',
+                        message: 'Temps nuageux prévu pour demain',
+                        time: 'Il y a 3h',
+                        type: 'weather',
+                        urgent: false
+                    }
+                ]
+            }
+        };
+
+        // Current trip management
+        let currentTripId = 'provence-2024';
+        let currentTrip = trips[currentTripId];
+
+        // Current data references (for compatibility with existing functions)
+        let bookings = currentTrip.bookings;
+        let itinerary = currentTrip.itinerary;
+        let contacts = currentTrip.contacts;
+        let recommendations = currentTrip.recommendations;
+        let notifications = currentTrip.notifications;
+
+        let map;
+        let markers = [];
+
+        // Navigation functions
+        function showSection(sectionName) {
+            // Hide all sections
+            const sections = ['overview', 'bookings', 'itinerary', 'map', 'contacts'];
+            sections.forEach(section => {
+                document.getElementById(section + '-section').classList.add('hidden');
+            });
+
+            // Show selected section
+            document.getElementById(sectionName + '-section').classList.remove('hidden');
+
+            // Update navigation state
+            document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => {
+                btn.classList.remove('text-eco-green-600', 'dark:text-eco-green-400', 'border-b-2', 'border-eco-green-500');
+                btn.classList.add('text-gray-600', 'dark:text-gray-300');
+            });
+
+            // Highlight active nav
+            event.target.classList.remove('text-gray-600', 'dark:text-gray-300');
+            event.target.classList.add('text-eco-green-600', 'dark:text-eco-green-400');
+            if (event.target.classList.contains('nav-btn')) {
+                event.target.classList.add('border-b-2', 'border-eco-green-500');
+            }
+
+            // Initialize map if map section is shown
+            if (sectionName === 'map' && !map) {
+                initMap();
+            }
+        }
+
+        // Bookings functions
+        function renderBookings() {
+            const container = document.getElementById('bookings-list');
+            container.innerHTML = bookings.map(booking => `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 ${getBookingTypeColor(booking.type)} rounded-lg flex items-center justify-center">
+                                ${getBookingTypeIcon(booking.type)}
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-white">${booking.title}</h3>
+                                <p class="text-sm text-gray-600 dark:text-gray-300">${booking.date}</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}">
+                            ${getStatusText(booking.status)}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">${booking.details}</p>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">Réf: ${booking.confirmation}</span>
+                        <button onclick="deleteBooking(${booking.id})" class="text-red-500 hover:text-red-700 text-sm">Supprimer</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getBookingTypeColor(type) {
+            const colors = {
+                hotel: 'bg-eco-green-100 dark:bg-eco-green-900/20',
+                transport: 'bg-warm-yellow-100 dark:bg-warm-yellow-900/20',
+                activity: 'bg-blue-100 dark:bg-blue-900/20'
+            };
+            return colors[type] || 'bg-gray-100 dark:bg-gray-700';
+        }
+
+        function getBookingTypeIcon(type) {
+            const icons = {
+                hotel: '🏨',
+                transport: '🚂',
+                activity: '🎯'
+            };
+            return icons[type] || '📋';
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                confirmed: 'bg-eco-green-100 dark:bg-eco-green-900/20 text-eco-green-700 dark:text-eco-green-300',
+                pending: 'bg-warm-yellow-100 dark:bg-warm-yellow-900/20 text-warm-yellow-700 dark:text-warm-yellow-300',
+                cancelled: 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+            };
+            return colors[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                confirmed: 'Confirmé',
+                pending: 'En attente',
+                cancelled: 'Annulé'
+            };
+            return texts[status] || 'Inconnu';
+        }
+
+        function addBooking() {
+            showModal('Ajouter une réservation', `
+                <form onsubmit="saveBooking(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <select name="type" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                            <option value="hotel">Hôtel</option>
+                            <option value="transport">Transport</option>
+                            <option value="activity">Activité</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre</label>
+                        <input type="text" name="title" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                        <input type="text" name="date" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Détails</label>
+                        <textarea name="details" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base" rows="3"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Numéro de confirmation</label>
+                        <input type="text" name="confirmation" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-eco-green-500 hover:bg-eco-green-600 text-white rounded-lg">Ajouter</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveBooking(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const newBooking = {
+                id: Date.now(),
+                type: formData.get('type'),
+                title: formData.get('title'),
+                date: formData.get('date'),
+                status: 'confirmed',
+                details: formData.get('details'),
+                confirmation: formData.get('confirmation')
+            };
+            bookings.push(newBooking);
+            renderBookings();
+            closeModal();
+        }
+
+        function deleteBooking(id) {
+            bookings = bookings.filter(booking => booking.id !== id);
+            renderBookings();
+        }
+
+        // Itinerary functions
+        function renderItinerary() {
+            const container = document.getElementById('itinerary-timeline');
+            const groupedByDate = {};
+            
+            itinerary.forEach(item => {
+                if (!groupedByDate[item.date]) {
+                    groupedByDate[item.date] = [];
+                }
+                groupedByDate[item.date].push(item);
+            });
+
+            container.innerHTML = Object.entries(groupedByDate).map(([date, items]) => `
+                <div class="border-l-4 border-eco-green-300 dark:border-eco-green-600 pl-6 relative">
+                    <div class="absolute -left-3 w-6 h-6 bg-eco-green-500 rounded-full border-4 border-white dark:border-gray-800"></div>
+                    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">${date}</h3>
+                    <div class="space-y-3">
+                        ${items.map(item => `
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-sm font-medium text-eco-green-600 dark:text-eco-green-400">${item.time}</span>
+                                        <span class="w-2 h-2 bg-warm-yellow-400 rounded-full"></span>
+                                        <h4 class="font-medium text-gray-900 dark:text-white">${item.title}</h4>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 bg-white dark:bg-gray-800 rounded">${getActivityTypeIcon(item.type)}</span>
+                                </div>
+                                <p class="text-sm text-gray-600 dark:text-gray-300 ml-16">${item.description}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 ml-16 mt-1">📍 ${item.location}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getActivityTypeIcon(type) {
+            const icons = {
+                transport: '🚂',
+                meal: '🍽️',
+                accommodation: '🏨',
+                activity: '🎯',
+                sightseeing: '👀'
+            };
+            return icons[type] || '📍';
+        }
+
+        function addItineraryItem() {
+            showModal('Ajouter une activité', `
+                <form onsubmit="saveItineraryItem(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                        <input type="date" name="date" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Heure</label>
+                        <input type="time" name="time" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre</label>
+                        <input type="text" name="title" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <select name="type" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                            <option value="activity">Activité</option>
+                            <option value="transport">Transport</option>
+                            <option value="meal">Repas</option>
+                            <option value="accommodation">Hébergement</option>
+                            <option value="sightseeing">Visite</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <textarea name="description" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base" rows="3"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lieu</label>
+                        <input type="text" name="location" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-warm-yellow-500 hover:bg-warm-yellow-600 text-white rounded-lg">Ajouter</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveItineraryItem(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const newItem = {
+                id: Date.now(),
+                date: formatDate(formData.get('date')),
+                time: formData.get('time'),
+                title: formData.get('title'),
+                type: formData.get('type'),
+                description: formData.get('description'),
+                location: formData.get('location')
+            };
+            itinerary.push(newItem);
+            itinerary.sort((a, b) => new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time));
+            renderItinerary();
+            closeModal();
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR', { 
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+
+        // Map functions
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 8,
+                center: { lat: 43.9493, lng: 4.8055 }, // Avignon
+                styles: [
+                    {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }
+                ]
+            });
+
+            // Add sample locations
+            const locations = [
+                { lat: 43.9493, lng: 4.8055, title: 'Avignon - Palais des Papes', type: 'attraction' },
+                { lat: 43.8364, lng: 5.0616, title: 'L\'Isle-sur-la-Sorgue', type: 'city' },
+                { lat: 43.9467, lng: 5.7333, title: 'Plateau de Valensole', type: 'activity' },
+                { lat: 43.9352, lng: 4.8051, title: 'Hôtel Les Jardins de Provence', type: 'hotel' }
+            ];
+
+            locations.forEach(location => {
+                const marker = new google.maps.Marker({
+                    position: { lat: location.lat, lng: location.lng },
+                    map: map,
+                    title: location.title,
+                    icon: getMarkerIcon(location.type)
+                });
+
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                        <div class="p-2">
+                            <h3 class="font-semibold">${location.title}</h3>
+                            <p class="text-sm text-gray-600">Type: ${location.type}</p>
+                        </div>
+                    `
+                });
+
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
+                });
+
+                markers.push(marker);
+            });
+        }
+
+        function getMarkerIcon(type) {
+            const icons = {
+                hotel: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                activity: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                restaurant: 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
+                attraction: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                city: 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png'
+            };
+            return icons[type] || 'https://maps.google.com/mapfiles/ms/icons/red-dot.png';
+        }
+
+        function showMapLayer(layer) {
+            // Filter markers based on layer type
+            markers.forEach(marker => {
+                const shouldShow = layer === 'all' || marker.title.includes(getLayerKeyword(layer));
+                marker.setVisible(shouldShow);
+            });
+
+            // Update filter button states
+            document.querySelectorAll('.map-filter-btn').forEach(btn => {
+                btn.classList.remove('bg-eco-green-500', 'text-white');
+                btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            });
+            event.target.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+            event.target.classList.add('bg-eco-green-500', 'text-white');
+        }
+
+        function getLayerKeyword(layer) {
+            const keywords = {
+                hotels: 'Hôtel',
+                activities: 'Plateau',
+                restaurants: 'Restaurant'
+            };
+            return keywords[layer] || '';
+        }
+
+        // Contacts functions
+        function renderContacts() {
+            const container = document.getElementById('contacts-list');
+            container.innerHTML = contacts.map(contact => `
+                <div class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                    <div class="flex items-center space-x-3 mb-3">
+                        <div class="w-10 h-10 ${getContactTypeColor(contact.type)} rounded-lg flex items-center justify-center">
+                            ${getContactTypeIcon(contact.type)}
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-gray-900 dark:text-white">${contact.name}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Disponible: ${contact.available}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <a href="tel:${contact.phone}" class="flex items-center space-x-2 text-eco-green-600 dark:text-eco-green-400 hover:underline">
+                            <span>📞</span>
+                            <span>${contact.phone}</span>
+                        </a>
+                        ${contact.email ? `
+                            <a href="mailto:${contact.email}" class="flex items-center space-x-2 text-eco-green-600 dark:text-eco-green-400 hover:underline">
+                                <span>✉️</span>
+                                <span>${contact.email}</span>
+                            </a>
+                        ` : ''}
+                    </div>
+                    <div class="mt-3 flex justify-end">
+                        <button onclick="deleteContact(${contact.id})" class="text-red-500 hover:text-red-700 text-sm">Supprimer</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getContactTypeColor(type) {
+            const colors = {
+                support: 'bg-eco-green-100 dark:bg-eco-green-900/20',
+                accommodation: 'bg-warm-yellow-100 dark:bg-warm-yellow-900/20',
+                guide: 'bg-blue-100 dark:bg-blue-900/20',
+                emergency: 'bg-red-100 dark:bg-red-900/20'
+            };
+            return colors[type] || 'bg-gray-100 dark:bg-gray-700';
+        }
+
+        function getContactTypeIcon(type) {
+            const icons = {
+                support: '🎧',
+                accommodation: '🏨',
+                guide: '👨‍🦲',
+                emergency: '🚨'
+            };
+            return icons[type] || '📞';
+        }
+
+        function addContact() {
+            showModal('Ajouter un contact', `
+                <form onsubmit="saveContact(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom</label>
+                        <input type="text" name="name" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                        <select name="type" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                            <option value="support">Support</option>
+                            <option value="accommodation">Hébergement</option>
+                            <option value="guide">Guide</option>
+                            <option value="emergency">Urgence</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Téléphone</label>
+                        <input type="tel" name="phone" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <input type="email" name="email" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Disponibilité</label>
+                        <input type="text" name="available" placeholder="ex: 9h-18h" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-eco-green-500 hover:bg-eco-green-600 text-white rounded-lg">Ajouter</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveContact(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const newContact = {
+                id: Date.now(),
+                name: formData.get('name'),
+                type: formData.get('type'),
+                phone: formData.get('phone'),
+                email: formData.get('email'),
+                available: formData.get('available') || '9h-18h'
+            };
+            contacts.push(newContact);
+            renderContacts();
+            closeModal();
+        }
+
+        function deleteContact(id) {
+            contacts = contacts.filter(contact => contact.id !== id);
+            renderContacts();
+        }
+
+        // Notifications functions
+        function toggleNotifications() {
+            const panel = document.getElementById('notifications-panel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                renderNotifications();
+            }
+        }
+
+        function renderNotifications() {
+            const container = document.getElementById('notifications-list');
+            if (notifications.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-sm">Aucune notification</p>';
+                return;
+            }
+
+            container.innerHTML = notifications.map(notification => `
+                <div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="w-2 h-2 ${notification.urgent ? 'bg-red-500' : 'bg-eco-green-500'} rounded-full mt-2"></div>
+                    <div class="flex-1">
+                        <h4 class="font-medium text-gray-900 dark:text-white text-sm">${notification.title}</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">${notification.message}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${notification.time}</p>
+                    </div>
+                    <button onclick="deleteNotification(${notification.id})" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteNotification(id) {
+            notifications = notifications.filter(notification => notification.id !== id);
+            renderNotifications();
+            updateNotificationBadge();
+        }
+
+        function updateNotificationBadge() {
+            const badge = document.getElementById('notification-badge');
+            if (notifications.length > 0) {
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // Modal functions
+        function showModal(title, content) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-content').innerHTML = content;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Close notifications when clicking outside
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('notifications-panel');
+            const button = e.target.closest('[onclick="toggleNotifications()"]');
+            if (!panel.contains(e.target) && !button && !panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+            }
+        });
+
+        // Recommendations functions
+        function renderRecommendations() {
+            const container = document.getElementById('recommendations-grid');
+            container.innerHTML = recommendations.map(rec => `
+                <div class="border ${getCategoryBorderColor(rec.category)} rounded-lg p-4 relative">
+                    ${rec.image ? `
+                        <div class="mb-3">
+                            <img src="${rec.image}" alt="${rec.title}" class="w-full h-32 object-cover rounded-lg">
+                        </div>
+                    ` : ''}
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="text-lg">${rec.icon}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">${rec.title}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">${rec.description}</p>
+                    <div class="flex justify-between items-center">
+                        <div class="text-xs ${getCategoryTextColor(rec.category)}">
+                            ${rec.rating ? `⭐ ${rec.rating}` : ''} ${rec.info ? `• ${rec.info}` : ''}
+                        </div>
+                        ${!rec.isDefault ? `
+                            <button onclick="deleteRecommendation(${rec.id})" class="text-red-500 hover:text-red-700 text-sm">
+                                Supprimer
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getCategoryBorderColor(category) {
+            const colors = {
+                restaurant: 'border-eco-green-200 dark:border-eco-green-700',
+                transport: 'border-warm-yellow-200 dark:border-warm-yellow-700',
+                activity: 'border-blue-200 dark:border-blue-700',
+                accommodation: 'border-purple-200 dark:border-purple-700',
+                shopping: 'border-pink-200 dark:border-pink-700'
+            };
+            return colors[category] || 'border-gray-200 dark:border-gray-700';
+        }
+
+        function getCategoryTextColor(category) {
+            const colors = {
+                restaurant: 'text-eco-green-600 dark:text-eco-green-400',
+                transport: 'text-warm-yellow-600 dark:text-warm-yellow-400',
+                activity: 'text-blue-600 dark:text-blue-400',
+                accommodation: 'text-purple-600 dark:text-purple-400',
+                shopping: 'text-pink-600 dark:text-pink-400'
+            };
+            return colors[category] || 'text-gray-600 dark:text-gray-400';
+        }
+
+        function addRecommendation() {
+            showModal('Ajouter une recommandation', `
+                <form onsubmit="saveRecommendation(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Titre</label>
+                        <input type="text" name="title" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie</label>
+                        <select name="category" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                            <option value="restaurant">Restaurant</option>
+                            <option value="activity">Activité</option>
+                            <option value="accommodation">Hébergement</option>
+                            <option value="transport">Transport</option>
+                            <option value="shopping">Shopping</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <textarea name="description" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base" rows="3"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL de l'image (optionnel)</label>
+                        <input type="url" name="image" placeholder="https://exemple.com/image.jpg" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Vous pouvez utiliser des images depuis Unsplash, Imgur, etc.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Icône</label>
+                        <input type="text" name="icon" placeholder="🍽️ (emoji)" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Note (optionnel)</label>
+                        <input type="text" name="rating" placeholder="4.5/5" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Information complémentaire</label>
+                        <input type="text" name="info" placeholder="Ouvert jusqu'à 22h" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-eco-green-500 hover:bg-eco-green-600 text-white rounded-lg">Ajouter</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveRecommendation(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const newRecommendation = {
+                id: Date.now(),
+                title: formData.get('title'),
+                description: formData.get('description'),
+                category: formData.get('category'),
+                image: formData.get('image') || null,
+                icon: formData.get('icon') || getDefaultIcon(formData.get('category')),
+                rating: formData.get('rating') || null,
+                info: formData.get('info') || null,
+                isDefault: false
+            };
+            recommendations.push(newRecommendation);
+            renderRecommendations();
+            closeModal();
+        }
+
+        function getDefaultIcon(category) {
+            const icons = {
+                restaurant: '🍽️',
+                activity: '🎯',
+                accommodation: '🏨',
+                transport: '🚗',
+                shopping: '🛍️'
+            };
+            return icons[category] || '📍';
+        }
+
+        function deleteRecommendation(id) {
+            recommendations = recommendations.filter(rec => rec.id !== id);
+            renderRecommendations();
+        }
+
+        // Trip Management functions
+        function renderTripSelector() {
+            const selector = document.getElementById('trip-selector');
+            selector.innerHTML = Object.values(trips).map(trip => 
+                `<option value="${trip.id}" ${trip.id === currentTripId ? 'selected' : ''}>${trip.name}</option>`
+            ).join('');
+        }
+
+        function switchTrip() {
+            const selector = document.getElementById('trip-selector');
+            const newTripId = selector.value;
+            
+            if (newTripId && trips[newTripId]) {
+                currentTripId = newTripId;
+                currentTrip = trips[currentTripId];
+                
+                // Update data references
+                bookings = currentTrip.bookings;
+                itinerary = currentTrip.itinerary;
+                contacts = currentTrip.contacts;
+                recommendations = currentTrip.recommendations;
+                notifications = currentTrip.notifications;
+                
+                // Re-render all sections
+                renderBookings();
+                renderItinerary();
+                renderContacts();
+                renderRecommendations();
+                updateNotificationBadge();
+                updateOverviewSection();
+            }
+        }
+
+        function updateOverviewSection() {
+            // Update the overview section with current trip info
+            const overviewSection = document.querySelector('#overview-section .bg-gradient-to-r');
+            overviewSection.innerHTML = `
+                <h2 class="text-2xl font-bold mb-2">Bienvenue dans votre voyage !</h2>
+                <p class="text-eco-green-50 mb-4">${currentTrip.description}</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div class="bg-white/20 rounded-lg p-3">
+                        <div class="font-semibold">Client</div>
+                        <div>${currentTrip.clientName}</div>
+                    </div>
+                    <div class="bg-white/20 rounded-lg p-3">
+                        <div class="font-semibold">Destination</div>
+                        <div>${currentTrip.destination}</div>
+                    </div>
+                    <div class="bg-white/20 rounded-lg p-3">
+                        <div class="font-semibold">Période</div>
+                        <div>${currentTrip.startDate} - ${currentTrip.endDate}</div>
+                    </div>
+                </div>
+            `;
+            
+            // Update stats
+            const statsContainers = document.querySelectorAll('#overview-section .grid > div');
+            if (statsContainers.length >= 4) {
+                statsContainers[0].querySelector('.text-2xl').textContent = currentTrip.bookings.length;
+                statsContainers[1].querySelector('.text-2xl').textContent = currentTrip.itinerary.length;
+                statsContainers[2].querySelector('.text-2xl').textContent = currentTrip.recommendations.length;
+                statsContainers[3].querySelector('.text-2xl').textContent = currentTrip.contacts.length;
+            }
+        }
+
+
+
+        // Authentication functions
+        function showLoginScreen() {
+            document.getElementById('app').innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-eco-green-50 to-warm-yellow-50 dark:from-eco-green-900 dark:to-warm-yellow-900">
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg w-full max-w-md">
+                        <div class="text-center mb-8">
+                            <div class="w-16 h-16 bg-gradient-to-br from-eco-green-500 to-warm-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <span class="text-white font-bold text-2xl">TP</span>
+                            </div>
+                            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Travel Planner</h1>
+                            <p class="text-gray-600 dark:text-gray-400 mt-2">Connectez-vous à votre voyage</p>
+                        </div>
+                        
+                        <form onsubmit="login(event)" class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom d'utilisateur</label>
+                                <input type="text" name="username" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-eco-green-500 focus:border-eco-green-500">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mot de passe</label>
+                                <input type="password" name="password" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 bg-white dark:bg-gray-700 text-base focus:ring-2 focus:ring-eco-green-500 focus:border-eco-green-500">
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-gradient-to-r from-eco-green-500 to-warm-yellow-500 text-white py-3 rounded-lg font-semibold hover:from-eco-green-600 hover:to-warm-yellow-600 transition-all">
+                                Se connecter
+                            </button>
+                            
+                            <div id="login-error" class="hidden text-red-600 dark:text-red-400 text-sm text-center"></div>
+                        </form>
+                        
+                        <div class="mt-8 p-4 bg-eco-green-50 dark:bg-eco-green-900/20 rounded-lg">
+                            <h3 class="font-semibold text-eco-green-800 dark:text-eco-green-200 mb-2">Comptes de démonstration :</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-700 dark:text-gray-300 font-bold">👑 Admin Back-Office:</span>
+                                    <span class="font-mono text-gray-600 dark:text-gray-400">admin / travelplanner2024</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-700 dark:text-gray-300">Famille Martin:</span>
+                                    <span class="font-mono text-gray-600 dark:text-gray-400">martin / provence2024</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-700 dark:text-gray-300">M. Dupont:</span>
+                                    <span class="font-mono text-gray-600 dark:text-gray-400">dupont / japon2024</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function login(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const username = formData.get('username').toLowerCase();
+            const password = formData.get('password');
+            
+            const user = users[username];
+            const errorDiv = document.getElementById('login-error');
+            
+            if (!user || user.password !== password) {
+                errorDiv.textContent = 'Nom d\'utilisateur ou mot de passe incorrect';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Successful login
+            currentUser = user;
+            initializeUserSession();
+        }
+
+        function initializeUserSession() {
+            // Admin has access to everything
+            if (currentUser.role === 'admin') {
+                showAdminInterface();
+                return;
+            }
+            
+            // Filter trips for current user
+            const allowedTripIds = userTrips[currentUser.username] || [];
+            const userSpecificTrips = {};
+            
+            // Keep only the complete data structure for the beginning 
+            const allTrips = {
+                'provence-2024': {
+                    id: 'provence-2024',
+                    name: 'Provence Écoresponsable',
+                    destination: 'Provence, France',
+                    startDate: '15 Juin 2024',
+                    endDate: '22 Juin 2024',
+                    clientName: 'Famille Martin',
+                    description: 'Découverte écoresponsable de la Provence',
+                    userId: 'martin',
+                    bookings: [
+                        {
+                            id: 1,
+                            type: 'hotel',
+                            title: 'Hôtel Les Jardins de Provence',
+                            date: '15-17 Juin 2024',
+                            status: 'confirmed',
+                            details: 'Chambre double, petit-déjeuner inclus',
+                            confirmation: 'HTL-45789'
+                        },
+                        {
+                            id: 2,
+                            type: 'transport',
+                            title: 'TGV Paris - Avignon',
+                            date: '15 Juin 2024, 07:20',
+                            status: 'confirmed',
+                            details: '2ème classe, places 61-62 voiture 12',
+                            confirmation: 'SNCF-789123'
+                        }
+                    ],
+                    itinerary: [
+                        {
+                            id: 1,
+                            date: '15 Juin 2024',
+                            time: '07:20',
+                            title: 'Départ TGV Paris-Avignon',
+                            description: 'Arrivée prévue 10:40',
+                            type: 'transport',
+                            location: 'Gare de Lyon, Paris'
+                        },
+                        {
+                            id: 2,
+                            date: '15 Juin 2024',
+                            time: '12:00',
+                            title: 'Déjeuner au Marché des Halles',
+                            description: 'Découverte des produits locaux',
+                            type: 'meal',
+                            location: 'Avignon Centre'
+                        }
+                    ],
+                    contacts: [
+                        {
+                            id: 1,
+                            name: 'Travel Planner - Support',
+                            phone: '+33 1 42 56 78 90',
+                            email: 'support@travelplanner.fr',
+                            type: 'support',
+                            available: '24h/24'
+                        },
+                        {
+                            id: 2,
+                            name: 'Hôtel Les Jardins de Provence',
+                            phone: '+33 4 90 25 67 89',
+                            email: 'contact@jardinsprovence.fr',
+                            type: 'accommodation',
+                            available: '8h-22h'
+                        }
+                    ],
+                    recommendations: [
+                        {
+                            id: 1,
+                            title: 'Restaurant Le Jardin Bio',
+                            description: 'Cuisine locale 100% bio, produits de saison',
+                            category: 'restaurant',
+                            rating: '4.8/5',
+                            info: 'Ouvert jusqu\'à 22h',
+                            icon: '🌱',
+                            image: null,
+                            isDefault: true
+                        },
+                        {
+                            id: 2,
+                            title: 'Location vélos électriques',
+                            description: 'Découvrez les environs en transport doux',
+                            category: 'transport',
+                            rating: '4.9/5',
+                            info: 'Livraison gratuite',
+                            icon: '🚲',
+                            image: null,
+                            isDefault: true
+                        }
+                    ],
+                    notifications: [
+                        {
+                            id: 1,
+                            title: 'Rappel de réservation',
+                            message: 'Votre visite des lavandes commence demain à 9h00',
+                            time: 'Il y a 2h',
+                            type: 'reminder',
+                            urgent: false
+                        }
+                    ]
+                },
+                'japan-2024': {
+                    id: 'japan-2024',
+                    name: 'Découverte du Japon',
+                    destination: 'Tokyo & Kyoto, Japon',
+                    startDate: '10 Septembre 2024',
+                    endDate: '25 Septembre 2024',
+                    clientName: 'M. Dupont',
+                    description: 'Voyage culturel au Japon',
+                    userId: 'dupont',
+                    bookings: [
+                        {
+                            id: 1,
+                            type: 'transport',
+                            title: 'Vol Air France Paris-Tokyo',
+                            date: '10 Septembre 2024, 11:30',
+                            status: 'confirmed',
+                            details: 'Classe économique, siège 23A',
+                            confirmation: 'AF-298457'
+                        },
+                        {
+                            id: 2,
+                            type: 'hotel',
+                            title: 'Hôtel Traditional Ryokan',
+                            date: '11-15 Septembre 2024',
+                            status: 'confirmed',
+                            details: 'Chambre traditionnelle avec tatami',
+                            confirmation: 'RYO-78965'
+                        }
+                    ],
+                    itinerary: [
+                        {
+                            id: 1,
+                            date: '11 Septembre 2024',
+                            time: '09:00',
+                            title: 'Visite du Temple Senso-ji',
+                            description: 'Découverte du plus ancien temple de Tokyo',
+                            type: 'sightseeing',
+                            location: 'Asakusa, Tokyo'
+                        },
+                        {
+                            id: 2,
+                            date: '12 Septembre 2024',
+                            time: '14:00',
+                            title: 'Cérémonie du thé',
+                            description: 'Initiation à la cérémonie traditionnelle',
+                            type: 'activity',
+                            location: 'Ueno, Tokyo'
+                        }
+                    ],
+                    contacts: [
+                        {
+                            id: 1,
+                            name: 'Guide local - Hiroshi Tanaka',
+                            phone: '+81 3 1234 5678',
+                            email: 'tanaka@tokyoguide.jp',
+                            type: 'guide',
+                            available: '9h-17h'
+                        },
+                        {
+                            id: 2,
+                            name: 'Ambassade de France au Japon',
+                            phone: '+81 3 5798 6000',
+                            email: 'info@ambafrance-jp.org',
+                            type: 'emergency',
+                            available: '24h/24'
+                        }
+                    ],
+                    recommendations: [
+                        {
+                            id: 1,
+                            title: 'Restaurant Sushi Yoshitake',
+                            description: 'Sushi traditionnel, 3 étoiles Michelin',
+                            category: 'restaurant',
+                            rating: '5.0/5',
+                            info: 'Réservation obligatoire',
+                            icon: '🍣',
+                            image: null,
+                            isDefault: true
+                        },
+                        {
+                            id: 2,
+                            title: 'Marché aux poissons de Tsukiji',
+                            description: 'Visite matinale du célèbre marché',
+                            category: 'activity',
+                            rating: '4.7/5',
+                            info: 'Ouvert dès 5h du matin',
+                            icon: '🐟',
+                            image: null,
+                            isDefault: true
+                        }
+                    ],
+                    notifications: [
+                        {
+                            id: 1,
+                            title: 'Météo',
+                            message: 'Temps nuageux prévu pour demain',
+                            time: 'Il y a 3h',
+                            type: 'weather',
+                            urgent: false
+                        }
+                    ]
+                }
+            };
+            
+            allowedTripIds.forEach(tripId => {
+                if (allTrips[tripId]) {
+                    userSpecificTrips[tripId] = allTrips[tripId];
+                }
+            });
+            
+            // Override trips with user-specific trips
+            trips = userSpecificTrips;
+            
+            // Set current trip to first available trip
+            const availableTripIds = Object.keys(trips);
+            if (availableTripIds.length > 0) {
+                currentTripId = availableTripIds[0];
+                currentTrip = trips[currentTripId];
+                
+                // Update data references
+                bookings = currentTrip.bookings;
+                itinerary = currentTrip.itinerary;
+                contacts = currentTrip.contacts;
+                recommendations = currentTrip.recommendations;
+                notifications = currentTrip.notifications;
+            }
+            
+            // Show main application
+            showMainApplication();
+            
+            // Update user interface
+            document.getElementById('user-name').textContent = `Bonjour, ${currentUser.displayName}`;
+            
+            // Render everything
+            renderTripSelector();
+            renderBookings();
+            renderItinerary();
+            renderContacts();
+            renderRecommendations();
+            updateNotificationBadge();
+            updateOverviewSection();
+        }
+
+        function showMainApplication() {
+            // Get the original app HTML
+            location.reload();
+        }
+
+        function showAdminInterface() {
+            document.getElementById('app').innerHTML = `
+                <div class="min-h-full bg-gray-50 dark:bg-gray-900">
+                    <!-- Admin Header -->
+                    <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex justify-between items-center h-16">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-eco-green-500 to-warm-yellow-500 rounded-lg flex items-center justify-center">
+                                        <span class="text-white font-bold text-sm">TP</span>
+                                    </div>
+                                    <div>
+                                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Travel Planner - Back Office</h1>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400">Administration des voyages clients</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">👑 ${currentUser.displayName}</span>
+                                    <button onclick="logout()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Déconnexion</button>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <!-- Admin Navigation -->
+                    <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex space-x-8">
+                                <button onclick="showAdminSection('dashboard')" class="admin-nav-btn border-b-2 border-eco-green-500 text-eco-green-600 dark:text-eco-green-400 py-4 px-1 text-sm font-medium">
+                                    📊 Tableau de bord
+                                </button>
+                                <button onclick="showAdminSection('trips')" class="admin-nav-btn text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 py-4 px-1 text-sm font-medium">
+                                    ✈️ Voyages
+                                </button>
+                                <button onclick="showAdminSection('clients')" class="admin-nav-btn text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 py-4 px-1 text-sm font-medium">
+                                    👥 Clients
+                                </button>
+                                <button onclick="showAdminSection('export')" class="admin-nav-btn text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 py-4 px-1 text-sm font-medium">
+                                    💾 Export/Import
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <!-- Admin Content -->
+                    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <!-- Dashboard Section -->
+                        <section id="admin-dashboard" class="space-y-6">
+                            <!-- Stats Cards -->
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-1">
+                                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Voyages</h3>
+                                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${Object.keys(trips).length}</p>
+                                        </div>
+                                        <div class="w-12 h-12 bg-eco-green-100 dark:bg-eco-green-900/20 rounded-lg flex items-center justify-center">
+                                            <span class="text-2xl">✈️</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-1">
+                                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Clients Actifs</h3>
+                                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${Object.keys(users).filter(u => users[u].role === 'client').length}</p>
+                                        </div>
+                                        <div class="w-12 h-12 bg-warm-yellow-100 dark:bg-warm-yellow-900/20 rounded-lg flex items-center justify-center">
+                                            <span class="text-2xl">👥</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-1">
+                                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Réservations</h3>
+                                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${Object.values(trips).reduce((total, trip) => total + trip.bookings.length, 0)}</p>
+                                        </div>
+                                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                            <span class="text-2xl">📋</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-1">
+                                            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Activités</h3>
+                                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${Object.values(trips).reduce((total, trip) => total + trip.itinerary.length, 0)}</p>
+                                        </div>
+                                        <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                                            <span class="text-2xl">🎯</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Activity -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Voyages Récents</h3>
+                                    <div class="space-y-3">
+                                        ${Object.values(trips).slice(0, 3).map(trip => `
+                                            <div class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                                <div class="w-10 h-10 bg-eco-green-100 dark:bg-eco-green-900/20 rounded-lg flex items-center justify-center">
+                                                    <span>✈️</span>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h4 class="font-medium text-gray-900 dark:text-white">${trip.name}</h4>
+                                                    <p class="text-sm text-gray-600 dark:text-gray-400">${trip.clientName} • ${trip.destination}</p>
+                                                </div>
+                                                <span class="text-sm text-gray-500 dark:text-gray-400">${trip.startDate}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Actions Rapides</h3>
+                                    <div class="space-y-3">
+                                        <button onclick="createNewTrip()" class="w-full flex items-center space-x-3 p-3 bg-eco-green-50 dark:bg-eco-green-900/20 text-eco-green-700 dark:text-eco-green-300 rounded-lg hover:bg-eco-green-100 dark:hover:bg-eco-green-900/40">
+                                            <span class="text-xl">➕</span>
+                                            <span class="font-medium">Créer un nouveau voyage</span>
+                                        </button>
+                                        <button onclick="createNewClient()" class="w-full flex items-center space-x-3 p-3 bg-warm-yellow-50 dark:bg-warm-yellow-900/20 text-warm-yellow-700 dark:text-warm-yellow-300 rounded-lg hover:bg-warm-yellow-100 dark:hover:bg-warm-yellow-900/40">
+                                            <span class="text-xl">👤</span>
+                                            <span class="font-medium">Ajouter un client</span>
+                                        </button>
+                                        <button onclick="exportAllData()" class="w-full flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40">
+                                            <span class="text-xl">💾</span>
+                                            <span class="font-medium">Exporter toutes les données</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Trips Section -->
+                        <section id="admin-trips" class="hidden space-y-6">
+                            <div class="flex justify-between items-center">
+                                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Gestion des Voyages</h2>
+                                <button onclick="createNewTrip()" class="px-4 py-2 bg-eco-green-500 text-white rounded-lg hover:bg-eco-green-600">+ Nouveau Voyage</button>
+                            </div>
+                            <div id="trips-list" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <!-- Trips will be populated here -->
+                            </div>
+                        </section>
+
+                        <!-- Clients Section -->
+                        <section id="admin-clients" class="hidden space-y-6">
+                            <div class="flex justify-between items-center">
+                                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Gestion des Clients</h2>
+                                <button onclick="createNewClient()" class="px-4 py-2 bg-warm-yellow-500 text-white rounded-lg hover:bg-warm-yellow-600">+ Nouveau Client</button>
+                            </div>
+                            <div id="clients-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <!-- Clients will be populated here -->
+                            </div>
+                        </section>
+
+                        <!-- Export Section -->
+                        <section id="admin-export" class="hidden space-y-6">
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Export & Import des Données</h2>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📤 Exporter</h3>
+                                    <div class="space-y-3">
+                                        <button onclick="exportAllData()" class="w-full px-4 py-3 bg-eco-green-500 text-white rounded-lg hover:bg-eco-green-600">Exporter Toutes les Données (JSON)</button>
+                                        <button onclick="exportTripsCSV()" class="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Exporter Voyages (CSV)</button>
+                                        <button onclick="exportClientsCSV()" class="w-full px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600">Exporter Clients (CSV)</button>
+                                    </div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">📥 Importer</h3>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fichier JSON</label>
+                                            <input type="file" id="import-file" accept=".json" class="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-eco-green-50 file:text-eco-green-700 hover:file:bg-eco-green-100">
+                                        </div>
+                                        <button onclick="importData()" class="w-full px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Importer Données</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </main>
+
+                    <!-- Admin Modal -->
+                    <div id="admin-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 id="admin-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">Titre</h3>
+                                <button onclick="closeAdminModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+                            </div>
+                            <div id="admin-modal-content">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Render admin sections
+            renderAdminTrips();
+            renderAdminClients();
+        }
+
+        function showAdminSection(section) {
+            // Hide all admin sections
+            const sections = ['dashboard', 'trips', 'clients', 'export'];
+            sections.forEach(s => {
+                const el = document.getElementById('admin-' + s);
+                if (el) el.classList.add('hidden');
+            });
+
+            // Show selected section
+            const targetSection = document.getElementById('admin-' + section);
+            if (targetSection) targetSection.classList.remove('hidden');
+
+            // Update navigation
+            document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+                btn.classList.remove('border-b-2', 'border-eco-green-500', 'text-eco-green-600', 'dark:text-eco-green-400');
+                btn.classList.add('text-gray-500', 'dark:text-gray-400');
+            });
+            event.target.classList.remove('text-gray-500', 'dark:text-gray-400');
+            event.target.classList.add('border-b-2', 'border-eco-green-500', 'text-eco-green-600', 'dark:text-eco-green-400');
+        }
+
+        function renderAdminTrips() {
+            const container = document.getElementById('trips-list');
+            if (!container) return;
+            
+            container.innerHTML = Object.values(trips).map(trip => `
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${trip.name}</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">${trip.clientName}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="editTrip('${trip.id}')" class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">✏️</button>
+                            <button onclick="deleteTrip('${trip.id}')" class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <p><span class="font-medium">Destination:</span> ${trip.destination}</p>
+                        <p><span class="font-medium">Dates:</span> ${trip.startDate} - ${trip.endDate}</p>
+                        <p><span class="font-medium">Réservations:</span> ${trip.bookings.length}</p>
+                        <p><span class="font-medium">Activités:</span> ${trip.itinerary.length}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAdminClients() {
+            const container = document.getElementById('clients-list');
+            if (!container) return;
+            
+            const clients = Object.values(users).filter(user => user.role === 'client');
+            container.innerHTML = clients.map(client => `
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${client.displayName}</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">${client.email}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="editClient('${client.username}')" class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">✏️</button>
+                            <button onclick="deleteClient('${client.username}')" class="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <p><span class="font-medium">Username:</span> ${client.username}</p>
+                        <p><span class="font-medium">Voyages:</span> ${(userTrips[client.username] || []).length}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function logout() {
+            currentUser = null;
+            showLoginScreen();
+        }
+
+        // Override addTrip function for clients
+        function addTrip() {
+            showCustomAlert('Seul Travel Planner peut créer de nouveaux voyages pour vous.');
+        }
+
+        // Custom alert function
+        function showCustomAlert(message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
+                    <div class="flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-eco-green-500 text-white hover:bg-eco-green-600 rounded">OK</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Admin Functions
+        function showAdminModal(title, content) {
+            document.getElementById('admin-modal-title').textContent = title;
+            document.getElementById('admin-modal-content').innerHTML = content;
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('admin-modal').classList.add('hidden');
+        }
+
+        function createNewTrip() {
+            const clientOptions = Object.values(users)
+                .filter(u => u.role === 'client')
+                .map(u => `<option value="${u.username}">${u.displayName}</option>`)
+                .join('');
+
+            showAdminModal('Créer un Nouveau Voyage', `
+                <form onsubmit="saveNewTrip(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom du voyage</label>
+                            <input type="text" name="name" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Client</label>
+                            <select name="clientUsername" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                                <option value="">Sélectionner un client</option>
+                                ${clientOptions}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Destination</label>
+                        <input type="text" name="destination" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date de début</label>
+                            <input type="text" name="startDate" required placeholder="ex: 15 Juin 2024" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date de fin</label>
+                            <input type="text" name="endDate" required placeholder="ex: 22 Juin 2024" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                        <textarea name="description" rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base"></textarea>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeAdminModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-eco-green-500 hover:bg-eco-green-600 text-white rounded-lg">Créer le Voyage</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveNewTrip(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const clientUsername = formData.get('clientUsername');
+            const client = users[clientUsername];
+            
+            const tripId = 'trip-' + Date.now();
+            const newTrip = {
+                id: tripId,
+                name: formData.get('name'),
+                destination: formData.get('destination'),
+                startDate: formData.get('startDate'),
+                endDate: formData.get('endDate'),
+                clientName: client.displayName,
+                description: formData.get('description') || 'Voyage personnalisé',
+                userId: clientUsername,
+                bookings: [],
+                itinerary: [],
+                contacts: [
+                    {
+                        id: 1,
+                        name: 'Travel Planner - Support',
+                        phone: '+33 1 42 56 78 90',
+                        email: 'support@travelplanner.fr',
+                        type: 'support',
+                        available: '24h/24'
+                    }
+                ],
+                recommendations: [],
+                notifications: []
+            };
+            
+            trips[tripId] = newTrip;
+            
+            // Add trip to user's trip list
+            if (!userTrips[clientUsername]) {
+                userTrips[clientUsername] = [];
+            }
+            userTrips[clientUsername].push(tripId);
+            
+            renderAdminTrips();
+            closeAdminModal();
+            showCustomAlert('Voyage créé avec succès !');
+        }
+
+        function createNewClient() {
+            showAdminModal('Ajouter un Nouveau Client', `
+                <form onsubmit="saveNewClient(event)" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom d'affichage</label>
+                        <input type="text" name="displayName" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom d'utilisateur</label>
+                        <input type="text" name="username" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
+                        <input type="email" name="email" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mot de passe</label>
+                        <input type="text" name="password" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeAdminModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-warm-yellow-500 hover:bg-warm-yellow-600 text-white rounded-lg">Créer le Client</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function saveNewClient(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const username = formData.get('username');
+            
+            if (users[username]) {
+                showCustomAlert('Ce nom d\'utilisateur existe déjà !');
+                return;
+            }
+            
+            users[username] = {
+                username: username,
+                password: formData.get('password'),
+                displayName: formData.get('displayName'),
+                email: formData.get('email'),
+                role: 'client'
+            };
+            
+            userTrips[username] = [];
+            
+            renderAdminClients();
+            closeAdminModal();
+            showCustomAlert('Client créé avec succès !');
+        }
+
+        function exportAllData() {
+            const data = {
+                users: users,
+                trips: trips,
+                userTrips: userTrips,
+                exportDate: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'travel-planner-data-' + new Date().toISOString().split('T')[0] + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showCustomAlert('Données exportées avec succès !');
+        }
+
+        function exportTripsCSV() {
+            const headers = ['ID', 'Nom', 'Client', 'Destination', 'Date Début', 'Date Fin', 'Réservations', 'Activités'];
+            const rows = Object.values(trips).map(trip => [
+                trip.id,
+                trip.name,
+                trip.clientName,
+                trip.destination,
+                trip.startDate,
+                trip.endDate,
+                trip.bookings.length,
+                trip.itinerary.length
+            ]);
+            
+            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'voyages-' + new Date().toISOString().split('T')[0] + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportClientsCSV() {
+            const clients = Object.values(users).filter(u => u.role === 'client');
+            const headers = ['Username', 'Nom', 'Email', 'Nombre de Voyages'];
+            const rows = clients.map(client => [
+                client.username,
+                client.displayName,
+                client.email,
+                (userTrips[client.username] || []).length
+            ]);
+            
+            const csvContent = [headers, ...rows].map(row => row.join(',')).join('\\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'clients-' + new Date().toISOString().split('T')[0] + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importData() {
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showCustomAlert('Veuillez sélectionner un fichier JSON.');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    if (data.users) users = data.users;
+                    if (data.trips) trips = data.trips;
+                    if (data.userTrips) userTrips = data.userTrips;
+                    
+                    renderAdminTrips();
+                    renderAdminClients();
+                    showCustomAlert('Données importées avec succès !');
+                } catch (error) {
+                    showCustomAlert('Erreur lors de l\'import: fichier JSON invalide.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function editTrip(tripId) {
+            const trip = trips[tripId];
+            showAdminModal('Modifier le Voyage', `
+                <form onsubmit="updateTrip(event, '${tripId}')" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom du voyage</label>
+                        <input type="text" name="name" value="${trip.name}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Destination</label>
+                        <input type="text" name="destination" value="${trip.destination}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date de début</label>
+                            <input type="text" name="startDate" value="${trip.startDate}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date de fin</label>
+                            <input type="text" name="endDate" value="${trip.endDate}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                        <textarea name="description" rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">${trip.description}</textarea>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeAdminModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">Mettre à jour</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function updateTrip(event, tripId) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            
+            trips[tripId].name = formData.get('name');
+            trips[tripId].destination = formData.get('destination');
+            trips[tripId].startDate = formData.get('startDate');
+            trips[tripId].endDate = formData.get('endDate');
+            trips[tripId].description = formData.get('description');
+            
+            renderAdminTrips();
+            closeAdminModal();
+            showCustomAlert('Voyage mis à jour avec succès !');
+        }
+
+        function deleteTrip(tripId) {
+            showConfirmModal('Supprimer le voyage', 'Êtes-vous sûr de vouloir supprimer ce voyage ? Cette action est irréversible.', () => {
+                // Remove from trips
+                delete trips[tripId];
+                
+                // Remove from userTrips
+                Object.keys(userTrips).forEach(username => {
+                    userTrips[username] = userTrips[username].filter(id => id !== tripId);
+                });
+                
+                renderAdminTrips();
+                showCustomAlert('Voyage supprimé avec succès !');
+            });
+        }
+
+        function editClient(username) {
+            const client = users[username];
+            showAdminModal('Modifier le Client', `
+                <form onsubmit="updateClient(event, '${username}')" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nom d'affichage</label>
+                        <input type="text" name="displayName" value="${client.displayName}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
+                        <input type="email" name="email" value="${client.email}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mot de passe</label>
+                        <input type="text" name="password" value="${client.password}" required class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-base">
+                    </div>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeAdminModal()" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">Mettre à jour</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function updateClient(event, username) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            
+            users[username].displayName = formData.get('displayName');
+            users[username].email = formData.get('email');
+            users[username].password = formData.get('password');
+            
+            renderAdminClients();
+            closeAdminModal();
+            showCustomAlert('Client mis à jour avec succès !');
+        }
+
+        function deleteClient(username) {
+            showConfirmModal('Supprimer le client', 'Êtes-vous sûr de vouloir supprimer ce client ? Tous ses voyages seront également supprimés.', () => {
+                // Remove client's trips
+                const clientTrips = userTrips[username] || [];
+                clientTrips.forEach(tripId => {
+                    delete trips[tripId];
+                });
+                
+                // Remove client
+                delete users[username];
+                delete userTrips[username];
+                
+                renderAdminClients();
+                renderAdminTrips();
+                showCustomAlert('Client supprimé avec succès !');
+            });
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">${title}</h3>
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Annuler</button>
+                        <button onclick="this.closest('.fixed').remove(); (${onConfirm})()" class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded">Confirmer</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            if (!currentUser) {
+                showLoginScreen();
+            } else {
+                renderTripSelector();
+                renderBookings();
+                renderItinerary();
+                renderContacts();
+                renderRecommendations();
+                updateNotificationBadge();
+                updateOverviewSection();
+            }
+        });
+    </script>
+</body>
+</html>
